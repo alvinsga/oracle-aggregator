@@ -51,6 +51,8 @@
 			name: 'DIA'
 		}
 	];
+	let precisionMainDisplay = 2;
+	let precisionHistoricalDisplay = 6;
 
 	async function startDataFeeds() {
 		paused = false;
@@ -233,6 +235,22 @@
 	<div class="flex align-middle justify-between">
 		<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
 		<div>
+			<Button variant="outline" title="Export" size="icon" on:click={stopDataFeeds}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="size-6"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+					/>
+				</svg>
+			</Button>
 			{#if paused}
 				<Button variant="outline" size="icon" on:click={startDataFeeds}>
 					<svg
@@ -486,6 +504,55 @@
 							</div>
 							<RadioGroup.Input name="spacing" />
 						</RadioGroup.Root>
+
+						<Sheet.Header class="mt-12">
+							<Sheet.Title>
+								<div class="flex items-center space-x-2">
+									<div>Precision</div>
+									<div>
+										<Tooltip.Root openDelay={0}>
+											<Tooltip.Trigger
+												><svg
+													xmlns="http://www.w3.org/2000/svg"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke-width="1.5"
+													stroke="currentColor"
+													class="size-5"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
+													/>
+												</svg>
+											</Tooltip.Trigger>
+											<Tooltip.Content
+												transition={flyAndScale}
+												transitionConfig={{ y: 8, duration: 150 }}
+												sideOffset={8}
+												side="right"
+											>
+												<div class="w-72">
+													<p class="font-normal">
+														Choose how many decimal points to display for aggregated and historical
+														prices.
+													</p>
+												</div>
+											</Tooltip.Content>
+										</Tooltip.Root>
+									</div>
+								</div>
+							</Sheet.Title>
+							<div class="flex items-center">
+								<p class="mr-2 font-medium">Price display precision:</p>
+								<Input bind:value={precisionMainDisplay} type="text" class="w-12" />
+							</div>
+							<div class="flex items-center">
+								<p class="mr-2 font-medium">Historical price display precision:</p>
+								<Input bind:value={precisionHistoricalDisplay} type="text" class="w-12" />
+							</div>
+						</Sheet.Header>
 					{:else}
 						<div class="text-sm font-medium mt-3 mb-1">Name</div>
 						<Input bind:value={nameCustomDataFeed} type="text" placeholder="Name" />
@@ -532,7 +599,9 @@
 		</Select.Root>
 	</div>
 
-	<div class="text-[128px] mt-6 text-center font-semibold">${displayedPrice.toFixed(2)}</div>
+	<div class="text-[128px] mt-6 text-center font-semibold">
+		${displayedPrice.toFixed(precisionMainDisplay)}
+	</div>
 	<div
 		class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
 	>
@@ -542,7 +611,7 @@
 				style="font-size: {3 - index * 0.2}rem;margin-top: {2 - index * 0.1}rem;margin-bottom: {2 -
 					index * 0.1}rem;"
 			>
-				{priceItem.price.toFixed(4)}
+				{priceItem.price.toFixed(precisionHistoricalDisplay)}
 			</div>
 		{/each}
 	</div>
