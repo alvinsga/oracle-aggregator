@@ -1,6 +1,6 @@
 # ORCA - simple oracle aggregator
 
-This oracle aggregator includes two data feeds by default (Pyth and DIA). Additional data feeds can be added through open APIs.
+This oracle aggregator aggregates prices for SOL/USD and BTC/USD from two oracles by default ([Pyth](https://pyth.network/) and [DIA](https://www.diadata.org/)). Additional open API based oracles can be added through the interface.
 
 ## Adding a new data feed
 
