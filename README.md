@@ -2,7 +2,7 @@
 
 This oracle aggregator aggregates prices for SOL/USD and BTC/USD from two oracles by default ([Pyth](https://pyth.network/) and [DIA](https://www.diadata.org/)). Additional open API based oracles can be added through the interface.
 
-For Pyth, the app subscribes to real-time price updates through a WebSocket connection and typically receives a price update every c.400ms. For DIA and other custom oracles, the app poll the API provided every 3 seconds.
+For Pyth, the app subscribes to real-time price updates through a WebSocket connection and typically receives a price update every c.400ms. For DIA and other custom oracles, the app polls the API provided every 3 seconds.
 
 ## Adding a new data feed
 
