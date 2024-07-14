@@ -29,6 +29,7 @@
 	$: displayedItems = priceArray.slice(0, 10);
 	$: displayedPrice = mainPriceDisplay(priceArray);
 	$: datapointCount = countDatapoints(priceArray);
+	$: gainLossPercent = (displayedPrice / priceArray[priceArray.length - 1]?.price - 1) * 100;
 
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
 	const EWMAArray: Array<number> = [];
@@ -54,7 +55,7 @@
 		}
 	];
 	let precisionMainDisplay = 2;
-	let precisionHistoricalDisplay = 4;
+	let precisionHistoricalDisplay = 3;
 
 	async function startDataFeeds() {
 		paused = false;
@@ -261,7 +262,17 @@
 <div class="max-w-5xl p-8 mx-auto">
 	<div class="flex align-middle justify-between">
 		<h1 class="text-lg mb-12 tracking-wide font-semibold">Orca</h1>
-		<div>
+		<div class="flex space-x-2">
+			<Select.Root onSelectedChange={currencyDropdownChange} selected={selectedCurrency}>
+				<Select.Trigger class="w-[120px]">
+					<Select.Value />
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="sol">SOL/USD</Select.Item>
+					<Select.Item value="btc">BTC/USD</Select.Item>
+				</Select.Content>
+			</Select.Root>
+
 			<Button variant="outline" title="Export" size="icon" on:click={downloadCSV}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -617,17 +628,7 @@
 			</Sheet.Root>
 		</div>
 	</div>
-	<div class="flex justify-center">
-		<Select.Root onSelectedChange={currencyDropdownChange} selected={selectedCurrency}>
-			<Select.Trigger class="w-[120px]">
-				<Select.Value />
-			</Select.Trigger>
-			<Select.Content>
-				<Select.Item value="sol">SOL/USD</Select.Item>
-				<Select.Item value="btc">BTC/USD</Select.Item>
-			</Select.Content>
-		</Select.Root>
-	</div>
+
 	{#if !displayedPrice}
 		<div class="flex justify-center mt-12">
 			<div class="lds-ellipsis">
@@ -638,8 +639,19 @@
 			</div>
 		</div>
 	{:else}
-		<div class="text-[128px] mt-6 text-center font-semibold">
+		<div class="text-[128px] text-center font-semibold mt-8">
 			${displayedPrice?.toFixed(precisionMainDisplay)}
+		</div>
+		<div class="flex justify-center">
+			{#if gainLossPercent > 0}
+				<div class="w-24 text-sm text-center text-white bg-green-700 rounded p-2">
+					{gainLossPercent.toFixed(2)}%
+				</div>
+			{:else}
+				<div class="w-24 text-sm text-center text-white bg-red-700 rounded p-2">
+					{gainLossPercent.toFixed(2)}%
+				</div>
+			{/if}
 		</div>
 		<div
 			class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
