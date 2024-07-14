@@ -12,6 +12,7 @@
 	import * as RadioGroup from '$lib/components/ui/radio-group/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { flyAndScale } from '$lib/utils';
+	import Papa from 'papaparse';
 
 	interface price {
 		price: number;
@@ -29,7 +30,7 @@
 	$: displayedPrice = mainPriceDisplay(priceArray);
 	$: datapointCount = countDatapoints(priceArray);
 
-	let paused = true;
+	let paused = false;
 	let selectedCurrency = { value: 'sol', label: 'SOL/USD' };
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
 	let priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
@@ -218,8 +219,20 @@
 		return datapointCountRecord;
 	}
 
+	function downloadCSV() {
+		const csv = Papa.unparse(priceArray);
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+		const link = document.createElement('a');
+		const url = URL.createObjectURL(blob);
+		link.href = url;
+		link.setAttribute('download', 'prices.csv');
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}
+
 	onMount(() => {
-		// startDataFeeds()
+		startDataFeeds();
 	});
 
 	// Clean up the interval when the component is destroyed
@@ -235,7 +248,7 @@
 	<div class="flex align-middle justify-between">
 		<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
 		<div>
-			<Button variant="outline" title="Export" size="icon" on:click={stopDataFeeds}>
+			<Button variant="outline" title="Export" size="icon" on:click={downloadCSV}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					fill="none"
@@ -598,21 +611,97 @@
 			</Select.Content>
 		</Select.Root>
 	</div>
-
-	<div class="text-[128px] mt-6 text-center font-semibold">
-		${displayedPrice.toFixed(precisionMainDisplay)}
-	</div>
-	<div
-		class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
-	>
-		{#each displayedItems as priceItem, index}
-			<div
-				class="max-w-lg mx-auto font-semibold flex justify-center items-center"
-				style="font-size: {3 - index * 0.2}rem;margin-top: {2 - index * 0.1}rem;margin-bottom: {2 -
-					index * 0.1}rem;"
-			>
-				{priceItem.price.toFixed(precisionHistoricalDisplay)}
+	{#if !displayedPrice}
+		<div class="flex justify-center mt-12">
+			<div class="lds-ellipsis">
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
 			</div>
-		{/each}
-	</div>
+		</div>
+	{:else}
+		<div class="text-[128px] mt-6 text-center font-semibold">
+			${displayedPrice.toFixed(precisionMainDisplay)}
+		</div>
+		<div
+			class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
+		>
+			{#each displayedItems as priceItem, index}
+				<div
+					class="max-w-lg mx-auto font-semibold flex justify-center items-center"
+					style="font-size: {3 - index * 0.2}rem;margin-top: {2 -
+						index * 0.1}rem;margin-bottom: {2 - index * 0.1}rem;"
+				>
+					{priceItem.price.toFixed(precisionHistoricalDisplay)}
+				</div>
+			{/each}
+		</div>
+	{/if}
 </div>
+
+<style>
+	.lds-ellipsis {
+		/* change color here */
+		color: #c1c1c1;
+	}
+	.lds-ellipsis,
+	.lds-ellipsis div {
+		box-sizing: border-box;
+	}
+	.lds-ellipsis {
+		display: inline-block;
+		position: relative;
+		width: 80px;
+		height: 80px;
+	}
+	.lds-ellipsis div {
+		position: absolute;
+		top: 33.33333px;
+		width: 13.33333px;
+		height: 13.33333px;
+		border-radius: 50%;
+		background: currentColor;
+		animation-timing-function: cubic-bezier(0, 1, 1, 0);
+	}
+	.lds-ellipsis div:nth-child(1) {
+		left: 8px;
+		animation: lds-ellipsis1 0.6s infinite;
+	}
+	.lds-ellipsis div:nth-child(2) {
+		left: 8px;
+		animation: lds-ellipsis2 0.6s infinite;
+	}
+	.lds-ellipsis div:nth-child(3) {
+		left: 32px;
+		animation: lds-ellipsis2 0.6s infinite;
+	}
+	.lds-ellipsis div:nth-child(4) {
+		left: 56px;
+		animation: lds-ellipsis3 0.6s infinite;
+	}
+	@keyframes lds-ellipsis1 {
+		0% {
+			transform: scale(0);
+		}
+		100% {
+			transform: scale(1);
+		}
+	}
+	@keyframes lds-ellipsis3 {
+		0% {
+			transform: scale(1);
+		}
+		100% {
+			transform: scale(0);
+		}
+	}
+	@keyframes lds-ellipsis2 {
+		0% {
+			transform: translate(0, 0);
+		}
+		100% {
+			transform: translate(24px, 0);
+		}
+	}
+</style>
