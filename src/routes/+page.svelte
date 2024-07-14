@@ -31,8 +31,9 @@
 	$: displayedItems = priceArray.slice(0, 10);
 	$: displayedPrice = mainPriceDisplay(priceArray);
 
+	let selectedCurrency = { value: 'sol', label: 'SOL/USD' };
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
-	const priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
+	let priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
 	let TVAPperiod = 60 * 1000; // 60 seconds * 1000 milliseconds
 	const EWMAArray: Array<number> = [];
 	let addDataFeedEnabled = false;
@@ -42,8 +43,7 @@
 	let selectedAttribute = { value: '', label: '' };
 	let keyDropdownArray: Array<string> = [];
 	let nameCustomDataFeed = '';
-	let APIUrl =
-		'https://api.diadata.org/v1/assetQuotation/Solana/0x0000000000000000000000000000000000000000';
+	let APIUrl = '';
 	let jsonData = '';
 	let customDataFeedArray: Array<customDataFeed> = [
 		{
@@ -53,12 +53,34 @@
 		}
 	];
 
-	async function startPythfeed() {
+	async function startDataFeeds() {
+		startPythDataFeed();
+		startCustomDataFeed();
+	}
+
+	async function stopDataFeeds() {
+		stopPythFeed();
+		stopCustomDataFeed();
+	}
+
+	async function startPythDataFeed() {
 		const priceFeeds = await connection.getLatestPriceFeeds(priceIds);
 		connection.subscribePriceFeedUpdates(priceIds, (priceFeed) => {
 			const price = Number(priceFeed.getPriceNoOlderThan(60)?.price) / 100000000;
 			addToPriceArray(price, feed.pyth);
 		});
+	}
+
+	function startCustomDataFeed() {
+		intervalId = setInterval(fetchCustomDataFeed, 5000) as unknown as number;
+	}
+
+	function stopPythFeed() {
+		connection.closeWebSocket();
+	}
+
+	function stopCustomDataFeed() {
+		clearInterval(intervalId);
 	}
 
 	function addToPriceArray(price: number, feed: feed) {
@@ -115,10 +137,6 @@
 		addDataFeedEnabled = false;
 	}
 
-	async function stopPythFeed() {
-		connection.closeWebSocket();
-	}
-
 	function setSelectedMenuItem(i: any) {
 		selectedAttribute.label = i.label;
 		selectedAttribute.value = i.value;
@@ -152,19 +170,42 @@
 			EWMAArray.push(arrayOfPrices[0].price);
 			return;
 		}
-		const alpha = 0.3;
+		const alpha = 0.5;
 		const mostRecentPrice = arrayOfPrices[0].price;
 		const previousEWMA = EWMAArray[EWMAArray.length - 1];
 		const newEWMA = alpha * mostRecentPrice + (1 - alpha) * previousEWMA;
 		EWMAArray.push(newEWMA);
-		console.log(EWMAArray);
 		return EWMAArray[EWMAArray.length - 1];
 	}
 
+	function currencyDropdownChange(value: any) {
+		stopDataFeeds();
+		if (value.value === 'sol') {
+			priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
+			customDataFeedArray = [
+				{
+					URL: 'https://api.diadata.org/v1/assetQuotation/Solana/0x0000000000000000000000000000000000000000',
+					priceArribute: 'Price',
+					name: 'DIA'
+				}
+			];
+			priceArray = [];
+		} else if (value.value === 'btc') {
+			priceIds = ['0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43'];
+			customDataFeedArray = [
+				{
+					URL: 'https://api.diadata.org/v1/assetQuotation/Bitcoin/0x0000000000000000000000000000000000000000',
+					priceArribute: 'Price',
+					name: 'DIA'
+				}
+			];
+			priceArray = [];
+		}
+		startDataFeeds();
+	}
+
 	onMount(() => {
-		// startDIAfeed();
-		// startPythfeed();
-		// intervalId = setInterval(fetchCustomDataFeed, 5000) as unknown as number;
+		// startDataFeeds()
 	});
 
 	// Clean up the interval when the component is destroyed
@@ -173,7 +214,12 @@
 	});
 </script>
 
+<svelte:head>
+	<title>{`$${displayedPrice.toFixed(2)} - ${selectedCurrency.label}`}</title>
+</svelte:head>
 <div class="max-w-5xl p-8 mx-auto">
+	<button on:click={startDataFeeds}>Start</button>
+	<button on:click={stopDataFeeds}>Stop</button>
 	<div class="flex align-middle justify-between">
 		<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
 		<Sheet.Root>
@@ -267,31 +313,29 @@
 		</Sheet.Root>
 	</div>
 	<div class="flex justify-center">
-		<Select.Root>
+		<Select.Root onSelectedChange={currencyDropdownChange} selected={selectedCurrency}>
 			<Select.Trigger class="w-[180px]">
-				<Select.Item value="sol">SOL/USD</Select.Item>
+				<Select.Value />
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Item value="sol">SOL/USD</Select.Item>
-				<Select.Item value="sol">BTC/USD</Select.Item>
+				<Select.Item value="btc">BTC/USD</Select.Item>
 			</Select.Content>
 		</Select.Root>
 	</div>
 
-	<div class="text-[156px] mt-6 text-center font-semibold">{displayedPrice.toFixed(2)}</div>
+	<div class="text-[128px] mt-6 text-center font-semibold">${displayedPrice.toFixed(2)}</div>
 	<div
 		class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
 	>
 		{#each displayedItems as priceItem, index}
 			<div
 				class="max-w-lg mx-auto font-semibold flex justify-center items-center"
-				style="font-size: {2 - index * 0.1}rem;margin-top: {2 - index * 0.1}rem;margin-bottom: {2 -
+				style="font-size: {3 - index * 0.2}rem;margin-top: {2 - index * 0.1}rem;margin-bottom: {2 -
 					index * 0.1}rem;"
 			>
-				{priceItem.price.toFixed(6)}
+				{priceItem.price.toFixed(4)}
 			</div>
 		{/each}
 	</div>
-	<button on:click={startPythfeed}>Start</button>
-	<button on:click={stopPythFeed}>Stop</button>
 </div>
