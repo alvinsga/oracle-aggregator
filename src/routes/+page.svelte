@@ -14,7 +14,7 @@
 	interface price {
 		price: number;
 		timestamp: number;
-		feed: feed;
+		feed: string;
 	}
 
 	interface customDataFeed {
@@ -23,13 +23,9 @@
 		priceArribute: string;
 	}
 
-	enum feed {
-		'pyth',
-		'custom'
-	}
-
 	$: displayedItems = priceArray.slice(0, 10);
 	$: displayedPrice = mainPriceDisplay(priceArray);
+	$: datapointCount = countDatapoints(priceArray);
 
 	let selectedCurrency = { value: 'sol', label: 'SOL/USD' };
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
@@ -67,7 +63,7 @@
 		const priceFeeds = await connection.getLatestPriceFeeds(priceIds);
 		connection.subscribePriceFeedUpdates(priceIds, (priceFeed) => {
 			const price = Number(priceFeed.getPriceNoOlderThan(60)?.price) / 100000000;
-			addToPriceArray(price, feed.pyth);
+			addToPriceArray(price, 'pyth');
 		});
 	}
 
@@ -83,7 +79,7 @@
 		clearInterval(intervalId);
 	}
 
-	function addToPriceArray(price: number, feed: feed) {
+	function addToPriceArray(price: number, feed: string) {
 		const timestamp = Date.now();
 		priceArray = [{ price, timestamp, feed }, ...priceArray];
 		removeOldPrices();
@@ -110,7 +106,7 @@
 			try {
 				const response = await fetch(datafeed.URL);
 				const result = await response.json();
-				addToPriceArray(result[datafeed.priceArribute], feed.custom);
+				addToPriceArray(result[datafeed.priceArribute], datafeed.name);
 			} catch (error) {
 				console.error('Error fetching data:', error);
 			}
@@ -160,7 +156,6 @@
 				aggregationRadioButton = 'ewma';
 				break;
 		}
-		console.log(TVAPperiod);
 	}
 
 	function calculateEWMA(arrayOfPrices: Array<price>) {
@@ -168,7 +163,7 @@
 		if (arrayOfPrices.length === 0) return;
 		if (arrayOfPrices.length === 1) {
 			EWMAArray.push(arrayOfPrices[0].price);
-			return;
+			return arrayOfPrices[0].price;
 		}
 		const alpha = 0.5;
 		const mostRecentPrice = arrayOfPrices[0].price;
@@ -204,6 +199,18 @@
 		startDataFeeds();
 	}
 
+	function countDatapoints(arr: Array<price>): Record<string, number> {
+		const datapointCountRecord: Record<string, number> = {};
+		arr.forEach((item) => {
+			if (datapointCountRecord[item.feed]) {
+				datapointCountRecord[item.feed]++;
+			} else {
+				datapointCountRecord[item.feed] = 1;
+			}
+		});
+		return datapointCountRecord;
+	}
+
 	onMount(() => {
 		// startDataFeeds()
 	});
@@ -237,8 +244,23 @@
 					<div class="mt-6">
 						<Card.Root>
 							<Card.Header>
-								<Card.Title>Pyth</Card.Title>
-								<Card.Description class="truncate">{priceIds[0]}</Card.Description>
+								<Card.Title>
+									<div class="flex space-x-2 items-center">
+										<p>Pyth</p>
+										<span class="relative flex h-2 w-2">
+											<span
+												class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-600 opacity-75"
+											></span>
+											<span class="relative inline-flex rounded-full h-2 w-2 bg-green-600"></span>
+										</span>
+									</div>
+								</Card.Title>
+								<Card.Description class="truncate"
+									>{priceIds[0]}
+									<div>
+										Data points: {datapointCount['pyth'] ?? 0}
+									</div>
+								</Card.Description>
 							</Card.Header>
 						</Card.Root>
 					</div>
@@ -246,8 +268,23 @@
 						<div class="mt-3 space-y-3">
 							<Card.Root>
 								<Card.Header>
-									<Card.Title>{customDataFeed.name}</Card.Title>
-									<Card.Description class="truncate">{customDataFeed.URL}</Card.Description>
+									<Card.Title>
+										<div class="flex space-x-2 items-center">
+											<p>{customDataFeed.name}</p>
+											<span class="relative flex h-2 w-2">
+												<span
+													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-600 opacity-75"
+												></span>
+												<span class="relative inline-flex rounded-full h-2 w-2 bg-green-600"></span>
+											</span>
+										</div>
+									</Card.Title>
+									<Card.Description class="truncate"
+										>{customDataFeed.URL}
+										<div>
+											Data points: {datapointCount[customDataFeed.name] ?? 0}
+										</div>
+									</Card.Description>
 								</Card.Header>
 							</Card.Root>
 						</div>
