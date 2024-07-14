@@ -9,6 +9,7 @@
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Card from '$lib/components/ui/card';
 	import { Label } from '$lib/components/ui/label';
+	import * as RadioGroup from '$lib/components/ui/radio-group/index.js';
 
 	interface price {
 		price: number;
@@ -28,15 +29,16 @@
 	}
 
 	$: displayedItems = priceArray.slice(0, 10);
-	$: TVAP = priceArray.reduce((prev, curr) => prev + curr.price, 0) / priceArray.length;
+	$: displayedPrice = mainPriceDisplay(priceArray);
 
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
 	const priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
-	const TVAPperiod = 60 * 1000; // 60 seconds * 1000 milliseconds
-
+	let TVAPperiod = 60 * 1000; // 60 seconds * 1000 milliseconds
+	const EWMAArray: Array<number> = [];
 	let addDataFeedEnabled = false;
 	let priceArray: Array<price> = [];
 	let intervalId: number;
+	let aggregationRadioButton = 'ewma';
 	let selectedAttribute = { value: '', label: '' };
 	let keyDropdownArray: Array<string> = [];
 	let nameCustomDataFeed = '';
@@ -69,6 +71,16 @@
 		const currentTime = Date.now();
 		const dataRetentionPeriod = currentTime - TVAPperiod;
 		priceArray = priceArray.filter((entry) => entry.timestamp > dataRetentionPeriod);
+	}
+
+	function mainPriceDisplay(priceArray: Array<price>) {
+		if (priceArray.length === 0) {
+			return 0;
+		} else if (aggregationRadioButton === 'ewma') {
+			return calculateEWMA(priceArray) ?? 0;
+		} else {
+			return priceArray.reduce((prev, curr) => prev + curr.price, 0) / priceArray.length;
+		}
 	}
 
 	async function fetchCustomDataFeed() {
@@ -112,6 +124,43 @@
 		selectedAttribute.value = i.value;
 	}
 
+	function handleRadioButtonChange(value: string) {
+		switch (value) {
+			case 'twap30':
+				aggregationRadioButton = 'twap30';
+				TVAPperiod = 30 * 1000;
+				break;
+			case 'twap60':
+				aggregationRadioButton = 'twap60';
+				TVAPperiod = 60 * 1000;
+				break;
+			case 'twap300':
+				aggregationRadioButton = 'twap300';
+				TVAPperiod = 300 * 1000;
+				break;
+			default:
+				aggregationRadioButton = 'ewma';
+				break;
+		}
+		console.log(TVAPperiod);
+	}
+
+	function calculateEWMA(arrayOfPrices: Array<price>) {
+		const reversedArray = arrayOfPrices.reverse();
+		if (arrayOfPrices.length === 0) return;
+		if (arrayOfPrices.length === 1) {
+			EWMAArray.push(arrayOfPrices[0].price);
+			return;
+		}
+		const alpha = 0.3;
+		const mostRecentPrice = arrayOfPrices[0].price;
+		const previousEWMA = EWMAArray[EWMAArray.length - 1];
+		const newEWMA = alpha * mostRecentPrice + (1 - alpha) * previousEWMA;
+		EWMAArray.push(newEWMA);
+		console.log(EWMAArray);
+		return EWMAArray[EWMAArray.length - 1];
+	}
+
 	onMount(() => {
 		// startDIAfeed();
 		// startPythfeed();
@@ -125,18 +174,111 @@
 </script>
 
 <div class="max-w-5xl p-8 mx-auto">
-	<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
-	<Select.Root>
-		<Select.Trigger class="w-[180px]">
-			<Select.Item value="sol">SOL/USD</Select.Item>
-		</Select.Trigger>
-		<Select.Content>
-			<Select.Item value="sol">SOL/USD</Select.Item>
-			<Select.Item value="sol">BTC/USD</Select.Item>
-		</Select.Content>
-	</Select.Root>
+	<div class="flex align-middle justify-between">
+		<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
+		<Sheet.Root>
+			<Sheet.Trigger asChild let:builder>
+				<Button builders={[builder]} variant="outline">Settings</Button>
+			</Sheet.Trigger>
+			<Sheet.Content>
+				<Sheet.Header>
+					<Sheet.Title>Settings</Sheet.Title>
+				</Sheet.Header>
+				<Sheet.Header class="mt-12">
+					<Sheet.Title>Data Feeds</Sheet.Title>
+				</Sheet.Header>
+				{#if !addDataFeedEnabled}
+					<div class="mt-6">
+						<Card.Root>
+							<Card.Header>
+								<Card.Title>Pyth</Card.Title>
+								<Card.Description class="truncate">{priceIds[0]}</Card.Description>
+							</Card.Header>
+						</Card.Root>
+					</div>
+					{#each customDataFeedArray as customDataFeed}
+						<div class="mt-3 space-y-3">
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>{customDataFeed.name}</Card.Title>
+									<Card.Description class="truncate">{customDataFeed.URL}</Card.Description>
+								</Card.Header>
+							</Card.Root>
+						</div>
+					{/each}
+					<div class="my-3">
+						<Button on:click={() => (addDataFeedEnabled = true)}>Add API data feed</Button>
+					</div>
+					<Sheet.Header class="mt-12">
+						<Sheet.Title>Aggregation Methodology</Sheet.Title>
+					</Sheet.Header>
+					<RadioGroup.Root
+						value={aggregationRadioButton}
+						class="mt-3"
+						onValueChange={handleRadioButtonChange}
+					>
+						<div class="flex items-center space-x-2">
+							<RadioGroup.Item value="ewma" id="r1" />
+							<Label for="r1">EMA</Label>
+						</div>
+						<div class="flex items-center space-x-2">
+							<RadioGroup.Item value="twap30" id="r2" />
+							<Label for="r2">TWAP (30 Seconds)</Label>
+						</div>
+						<div class="flex items-center space-x-2">
+							<RadioGroup.Item value="twap60" id="r3" />
+							<Label for="r3">TWAP (60 seconds)</Label>
+						</div>
+						<div class="flex items-center space-x-2">
+							<RadioGroup.Item value="twap300" id="r3" />
+							<Label for="r3">TWAP (5 minutes)</Label>
+						</div>
+						<RadioGroup.Input name="spacing" />
+					</RadioGroup.Root>
+				{:else}
+					<div class="text-sm font-medium mt-3 mb-1">Name</div>
+					<Input bind:value={nameCustomDataFeed} type="text" placeholder="Name" />
+					<div class="text-sm font-medium mt-3 mb-1">API URL</div>
+					<div class="flex w-full max-w-sm items-center space-x-2">
+						<Input bind:value={APIUrl} type="text" placeholder="API URL" />
+						<Button on:click={fetchAPIFeed}>Test</Button>
+					</div>
+					{#if jsonData}
+						<ScrollArea class="h-[200px] w-[350px] rounded-md border p-4 mt-5">
+							<pre>{JSON.stringify(jsonData, null, 2)}</pre>
+						</ScrollArea>
+						<div class="mt-5 flex space-x-3">
+							<Select.Root onSelectedChange={setSelectedMenuItem}>
+								<Select.Trigger class="w-[200px]">
+									<Select.Value placeholder="Select Price Attribute" />
+								</Select.Trigger>
+								<Select.Content>
+									{#each keyDropdownArray as item}
+										<Select.Item value={item}>{item}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+							<Button on:click={saveCustomDataFeed}>Save</Button>
+						</div>
+					{/if}
+					<Button class="w-full mt-10" on:click={() => (addDataFeedEnabled = false)}>Cancel</Button>
+				{/if}
+			</Sheet.Content>
+		</Sheet.Root>
+	</div>
+	<div class="flex justify-center">
+		<Select.Root>
+			<Select.Trigger class="w-[180px]">
+				<Select.Item value="sol">SOL/USD</Select.Item>
+			</Select.Trigger>
+			<Select.Content>
+				<Select.Item value="sol">SOL/USD</Select.Item>
+				<Select.Item value="sol">BTC/USD</Select.Item>
+			</Select.Content>
+		</Select.Root>
+	</div>
 
-	<div class="text-[156px] mt-24 text-center font-semibold">{TVAP.toFixed(2)}</div>
+	<div class="text-[156px] mt-6 text-center font-semibold">{displayedPrice.toFixed(2)}</div>
 	<div
 		class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
 	>
@@ -152,65 +294,4 @@
 	</div>
 	<button on:click={startPythfeed}>Start</button>
 	<button on:click={stopPythFeed}>Stop</button>
-
-	<Sheet.Root>
-		<Sheet.Trigger asChild let:builder>
-			<Button builders={[builder]} variant="outline">Open</Button>
-		</Sheet.Trigger>
-		<Sheet.Content>
-			<Sheet.Header>
-				<Sheet.Title>Settings</Sheet.Title>
-			</Sheet.Header>
-			{#if !addDataFeedEnabled}
-				<div class="mt-6">
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>Pyth</Card.Title>
-							<Card.Description class="truncate">{priceIds[0]}</Card.Description>
-						</Card.Header>
-					</Card.Root>
-				</div>
-				{#each customDataFeedArray as customDataFeed}
-					<div class="mt-3 space-y-3">
-						<Card.Root>
-							<Card.Header>
-								<Card.Title>{customDataFeed.name}</Card.Title>
-								<Card.Description class="truncate">{customDataFeed.URL}</Card.Description>
-							</Card.Header>
-						</Card.Root>
-					</div>
-				{/each}
-				<div class="my-3">
-					<Button on:click={() => (addDataFeedEnabled = true)}>Add API data feed</Button>
-				</div>
-			{:else}
-				<div class="text-sm font-medium mt-3 mb-1">Name</div>
-				<Input bind:value={nameCustomDataFeed} type="text" placeholder="Name" />
-				<div class="text-sm font-medium mt-3 mb-1">API URL</div>
-				<div class="flex w-full max-w-sm items-center space-x-2">
-					<Input bind:value={APIUrl} type="text" placeholder="API URL" />
-					<Button on:click={fetchAPIFeed}>Test</Button>
-				</div>
-				{#if jsonData}
-					<ScrollArea class="h-[200px] w-[350px] rounded-md border p-4 mt-5">
-						<pre>{JSON.stringify(jsonData, null, 2)}</pre>
-					</ScrollArea>
-					<div class="mt-5 flex space-x-3">
-						<Select.Root onSelectedChange={setSelectedMenuItem}>
-							<Select.Trigger class="w-[200px]">
-								<Select.Value placeholder="Select Price Attribute" />
-							</Select.Trigger>
-							<Select.Content>
-								{#each keyDropdownArray as item}
-									<Select.Item value={item}>{item}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-						<Button on:click={saveCustomDataFeed}>Save</Button>
-					</div>
-				{/if}
-				<Button class="w-full mt-10" on:click={() => (addDataFeedEnabled = false)}>Cancel</Button>
-			{/if}
-		</Sheet.Content>
-	</Sheet.Root>
 </div>
