@@ -260,7 +260,7 @@
 </svelte:head>
 <div class="max-w-5xl p-8 mx-auto">
 	<div class="flex align-middle justify-between">
-		<h1 class="text-lg mb-12 tracking-wide font-semibold">ORCA</h1>
+		<h1 class="text-lg mb-12 tracking-wide font-semibold">Orca</h1>
 		<div>
 			<Button variant="outline" title="Export" size="icon" on:click={downloadCSV}>
 				<svg
@@ -498,7 +498,7 @@
 													<p class="font-bold mt-3">TWAP (Time Weighted Average Price):</p>
 													<p class="font-normal">
 														Calculates an average price over a given time period. You have an option
-														a period between 30 seconds, 60 seconds or 5 minutes. The longer the
+														of a period between 30 seconds, 60 seconds or 5 minutes. The longer the
 														time period, the greater the smoothening effect.
 													</p>
 												</div>
