@@ -30,12 +30,15 @@
 	$: displayedPrice = mainPriceDisplay(priceArray);
 	$: datapointCount = countDatapoints(priceArray);
 
-	let paused = false;
-	let selectedCurrency = { value: 'sol', label: 'SOL/USD' };
 	const connection = new PriceServiceConnection('https://hermes.pyth.network');
-	let priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
-	let TVAPperiod = 60 * 1000; // 60 seconds * 1000 milliseconds
 	const EWMAArray: Array<number> = [];
+
+	let APIUrl = '';
+	let paused = false;
+	let jsonData = '';
+	let selectedCurrency = { value: 'sol', label: 'SOL/USD' };
+	let priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
+	let period = 60 * 1000; // 60 seconds * 1000 milliseconds
 	let addDataFeedEnabled = false;
 	let priceArray: Array<price> = [];
 	let intervalId: number;
@@ -43,8 +46,6 @@
 	let selectedAttribute = { value: '', label: '' };
 	let keyDropdownArray: Array<string> = [];
 	let nameCustomDataFeed = '';
-	let APIUrl = '';
-	let jsonData = '';
 	let customDataFeedArray: Array<customDataFeed> = [
 		{
 			URL: 'https://api.diadata.org/v1/assetQuotation/Solana/0x0000000000000000000000000000000000000000',
@@ -53,7 +54,7 @@
 		}
 	];
 	let precisionMainDisplay = 2;
-	let precisionHistoricalDisplay = 6;
+	let precisionHistoricalDisplay = 4;
 
 	async function startDataFeeds() {
 		paused = false;
@@ -68,7 +69,6 @@
 	}
 
 	async function startPythDataFeed() {
-		const priceFeeds = await connection.getLatestPriceFeeds(priceIds);
 		connection.subscribePriceFeedUpdates(priceIds, (priceFeed) => {
 			const price = Number(priceFeed.getPriceNoOlderThan(60)?.price) / 100000000;
 			addToPriceArray(price, 'pyth');
@@ -76,7 +76,7 @@
 	}
 
 	function startCustomDataFeed() {
-		intervalId = setInterval(fetchCustomDataFeed, 5000) as unknown as number;
+		intervalId = setInterval(fetchCustomDataFeed, 3000) as unknown as number;
 	}
 
 	function stopPythFeed() {
@@ -87,28 +87,8 @@
 		clearInterval(intervalId);
 	}
 
-	function addToPriceArray(price: number, feed: string) {
-		const timestamp = Date.now();
-		priceArray = [{ price, timestamp, feed }, ...priceArray];
-		removeOldPrices();
-	}
-
-	function removeOldPrices() {
-		const currentTime = Date.now();
-		const dataRetentionPeriod = currentTime - TVAPperiod;
-		priceArray = priceArray.filter((entry) => entry.timestamp > dataRetentionPeriod);
-	}
-
-	function mainPriceDisplay(priceArray: Array<price>) {
-		if (priceArray.length === 0) {
-			return 0;
-		} else if (aggregationRadioButton === 'ewma') {
-			return calculateEWMA(priceArray) ?? 0;
-		} else {
-			return priceArray.reduce((prev, curr) => prev + curr.price, 0) / priceArray.length;
-		}
-	}
-
+	/* Function which is periodically run to iterate over 
+	custom data feed array and fetch data from all feeds */
 	async function fetchCustomDataFeed() {
 		for (const datafeed of customDataFeedArray) {
 			try {
@@ -121,6 +101,32 @@
 		}
 	}
 
+	function addToPriceArray(price: number, feed: string) {
+		const timestamp = Date.now();
+		priceArray = [{ price, timestamp, feed }, ...priceArray];
+		removeOldPrices();
+	}
+
+	function removeOldPrices() {
+		const currentTime = Date.now();
+		const dataRetentionPeriod = currentTime - period;
+		priceArray = priceArray.filter((entry) => entry.timestamp > dataRetentionPeriod);
+	}
+
+	/* Checks price aggregation method being used and 
+	returns appropriate calculation */
+	function mainPriceDisplay(priceArray: Array<price>) {
+		if (priceArray.length === 0) {
+			return 0;
+		} else if (aggregationRadioButton === 'ewma') {
+			return calculateEWMA(priceArray) ?? 0;
+		} else {
+			return priceArray.reduce((prev, curr) => prev + curr.price, 0) / priceArray.length;
+		}
+	}
+
+	/* Used when adding new API feed. 
+	Populates dropdown menu with atributes from API response object */
 	async function fetchAPIFeed() {
 		try {
 			const response = await fetch(APIUrl);
@@ -132,15 +138,17 @@
 		}
 	}
 
+	/* Used to complete adding new API feed flow */
 	async function saveCustomDataFeed() {
 		customDataFeedArray = [
 			...customDataFeedArray,
-			{ URL: APIUrl, name: nameCustomDataFeed, priceArribute: selectedAttribute.label }
+			{ URL: APIUrl, name: nameCustomDataFeed, priceArribute: selectedAttribute.label.trim() }
 		];
 		console.log(customDataFeedArray);
 		addDataFeedEnabled = false;
 	}
 
+	/* Functions below handle inputs on dropdown/radio buttons */
 	function setSelectedMenuItem(i: any) {
 		selectedAttribute.label = i.label;
 		selectedAttribute.value = i.value;
@@ -150,40 +158,27 @@
 		switch (value) {
 			case 'twap30':
 				aggregationRadioButton = 'twap30';
-				TVAPperiod = 30 * 1000;
+				period = 30 * 1000;
 				break;
 			case 'twap60':
 				aggregationRadioButton = 'twap60';
-				TVAPperiod = 60 * 1000;
+				period = 60 * 1000;
 				break;
 			case 'twap300':
 				aggregationRadioButton = 'twap300';
-				TVAPperiod = 300 * 1000;
+				period = 300 * 1000;
 				break;
 			default:
 				aggregationRadioButton = 'ewma';
+				period = 300 * 1000;
 				break;
 		}
-	}
-
-	function calculateEWMA(arrayOfPrices: Array<price>) {
-		const reversedArray = arrayOfPrices.reverse();
-		if (arrayOfPrices.length === 0) return;
-		if (arrayOfPrices.length === 1) {
-			EWMAArray.push(arrayOfPrices[0].price);
-			return arrayOfPrices[0].price;
-		}
-		const alpha = 0.5;
-		const mostRecentPrice = arrayOfPrices[0].price;
-		const previousEWMA = EWMAArray[EWMAArray.length - 1];
-		const newEWMA = alpha * mostRecentPrice + (1 - alpha) * previousEWMA;
-		EWMAArray.push(newEWMA);
-		return EWMAArray[EWMAArray.length - 1];
 	}
 
 	function currencyDropdownChange(value: any) {
 		stopDataFeeds();
 		if (value.value === 'sol') {
+			selectedCurrency = { value: 'sol', label: 'SOL/USD' };
 			priceIds = ['0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'];
 			customDataFeedArray = [
 				{
@@ -194,6 +189,7 @@
 			];
 			priceArray = [];
 		} else if (value.value === 'btc') {
+			selectedCurrency = { value: 'btc', label: 'BTC/USD' };
 			priceIds = ['0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43'];
 			customDataFeedArray = [
 				{
@@ -207,6 +203,7 @@
 		startDataFeeds();
 	}
 
+	/* Used to populate data point counter for each data feed in settings */
 	function countDatapoints(arr: Array<price>): Record<string, number> {
 		const datapointCountRecord: Record<string, number> = {};
 		arr.forEach((item) => {
@@ -231,6 +228,23 @@
 		document.body.removeChild(link);
 	}
 
+	/* EWMA calculation logic */
+	function calculateEWMA(arrayOfPrices: Array<price>) {
+		const reversedArray = arrayOfPrices.reverse();
+		if (arrayOfPrices.length === 0) return;
+		if (arrayOfPrices.length === 1) {
+			EWMAArray.push(arrayOfPrices[0].price);
+			return arrayOfPrices[0].price;
+		}
+		const alpha = 0.5;
+		const mostRecentPrice = arrayOfPrices[0].price;
+		const previousEWMA = EWMAArray[EWMAArray.length - 1];
+		const newEWMA = alpha * mostRecentPrice + (1 - alpha) * previousEWMA;
+		EWMAArray.push(newEWMA);
+		return EWMAArray[EWMAArray.length - 1];
+	}
+
+	// Start all data feeds on page load
 	onMount(() => {
 		startDataFeeds();
 	});
@@ -242,7 +256,7 @@
 </script>
 
 <svelte:head>
-	<title>{`$${displayedPrice.toFixed(2)} - ${selectedCurrency.label}`}</title>
+	<title>{`$${displayedPrice?.toFixed(2)} - ${selectedCurrency.label}`}</title>
 </svelte:head>
 <div class="max-w-5xl p-8 mx-auto">
 	<div class="flex align-middle justify-between">
@@ -328,10 +342,10 @@
 					<Sheet.Header>
 						<Sheet.Title>Settings</Sheet.Title>
 					</Sheet.Header>
-					<Sheet.Header class="mt-12">
-						<Sheet.Title>Data Feeds</Sheet.Title>
-					</Sheet.Header>
 					{#if !addDataFeedEnabled}
+						<Sheet.Header class="mt-12">
+							<Sheet.Title>Data Feeds</Sheet.Title>
+						</Sheet.Header>
 						<div class="mt-6">
 							<Card.Root>
 								<Card.Header>
@@ -475,7 +489,7 @@
 												side="right"
 											>
 												<div class="w-72">
-													<p class="font-bold">EWMA (Exponentially Weighted Average Price):</p>
+													<p class="font-bold">EWMA (Exponentially Weighted Moving Average):</p>
 													<p class="font-normal">
 														A type of moving average that assigns exponentially decreasing weights
 														to older data points. This gives more importance to recent observations,
@@ -501,7 +515,7 @@
 						>
 							<div class="flex items-center space-x-2">
 								<RadioGroup.Item value="ewma" id="r1" />
-								<Label for="r1">EMA</Label>
+								<Label for="r1">EWMA</Label>
 							</div>
 							<div class="flex items-center space-x-2">
 								<RadioGroup.Item value="twap30" id="r2" />
@@ -567,6 +581,9 @@
 							</div>
 						</Sheet.Header>
 					{:else}
+						<Sheet.Header class="mt-12">
+							<Sheet.Title>Add new data feeds</Sheet.Title>
+						</Sheet.Header>
 						<div class="text-sm font-medium mt-3 mb-1">Name</div>
 						<Input bind:value={nameCustomDataFeed} type="text" placeholder="Name" />
 						<div class="text-sm font-medium mt-3 mb-1">API URL</div>
@@ -622,7 +639,7 @@
 		</div>
 	{:else}
 		<div class="text-[128px] mt-6 text-center font-semibold">
-			${displayedPrice.toFixed(precisionMainDisplay)}
+			${displayedPrice?.toFixed(precisionMainDisplay)}
 		</div>
 		<div
 			class="bg-gradient-to-b from-gray-900 to-gray-100 bg-clip-text text-transparent align-center flex-col"
@@ -633,75 +650,9 @@
 					style="font-size: {3 - index * 0.2}rem;margin-top: {2 -
 						index * 0.1}rem;margin-bottom: {2 - index * 0.1}rem;"
 				>
-					{priceItem.price.toFixed(precisionHistoricalDisplay)}
+					{priceItem.price?.toFixed(precisionHistoricalDisplay)}
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
-
-<style>
-	.lds-ellipsis {
-		/* change color here */
-		color: #c1c1c1;
-	}
-	.lds-ellipsis,
-	.lds-ellipsis div {
-		box-sizing: border-box;
-	}
-	.lds-ellipsis {
-		display: inline-block;
-		position: relative;
-		width: 80px;
-		height: 80px;
-	}
-	.lds-ellipsis div {
-		position: absolute;
-		top: 33.33333px;
-		width: 13.33333px;
-		height: 13.33333px;
-		border-radius: 50%;
-		background: currentColor;
-		animation-timing-function: cubic-bezier(0, 1, 1, 0);
-	}
-	.lds-ellipsis div:nth-child(1) {
-		left: 8px;
-		animation: lds-ellipsis1 0.6s infinite;
-	}
-	.lds-ellipsis div:nth-child(2) {
-		left: 8px;
-		animation: lds-ellipsis2 0.6s infinite;
-	}
-	.lds-ellipsis div:nth-child(3) {
-		left: 32px;
-		animation: lds-ellipsis2 0.6s infinite;
-	}
-	.lds-ellipsis div:nth-child(4) {
-		left: 56px;
-		animation: lds-ellipsis3 0.6s infinite;
-	}
-	@keyframes lds-ellipsis1 {
-		0% {
-			transform: scale(0);
-		}
-		100% {
-			transform: scale(1);
-		}
-	}
-	@keyframes lds-ellipsis3 {
-		0% {
-			transform: scale(1);
-		}
-		100% {
-			transform: scale(0);
-		}
-	}
-	@keyframes lds-ellipsis2 {
-		0% {
-			transform: translate(0, 0);
-		}
-		100% {
-			transform: translate(24px, 0);
-		}
-	}
-</style>
